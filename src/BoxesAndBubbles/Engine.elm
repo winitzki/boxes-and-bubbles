@@ -146,7 +146,9 @@ update: Vec2 -> Float -> Body a -> Body a
 update force dt body = 
   let acceleration = mul2 force body.inverseMass -- f = ma => a = f/m
       velocityNew = plus body.velocity (mul2 acceleration dt)
-      posNew = plus body.pos (mul2 (plus body.velocity velocityNew) (dt*0.5))
+--      velocity = mul2 (plus body.velocity velocityNew) 0.5
+      velocity = velocityNew
+      posNew = plus body.pos (mul2 velocity dt)
   in { body | pos = posNew, velocity = velocityNew }
 
 

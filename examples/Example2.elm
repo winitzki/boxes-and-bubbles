@@ -14,8 +14,8 @@ The scene is updated after each animation frame.
 import Html.App exposing (program)
 import BoxesAndBubbles.Bodies exposing (..)
 import BoxesAndBubbles exposing (..)
-import BoxesAndBubbles.Math2D exposing (mul2, Vec2)
-import List exposing (map)
+import BoxesAndBubbles.Math2D exposing (mul2, Vec2, plus, lenSq, minus)
+import List exposing (map, foldl)
 import Collage exposing (..)
 import Element exposing (..)
 import Color exposing (..)
@@ -28,36 +28,25 @@ inf = 1/0 -- infinity, hell yeah
 e0 = 0.8 -- default restitution coefficient
 
 -- box: (w,h) pos velocity density restitution 
--- bubble: radius pos velocity density restitution
+-- bubble: radius density restitution pos velocity 
 
 type alias Model meta = List (Body meta)
 
 defaultLabel = ""
 
-someBodies = [ 
-  bubble 30 1 e0(-80,0) (1.5,0) defaultLabel,
-  bubble 70 inf 0 (80,0) (0,0) defaultLabel,
-  bubble 40 1 e0 (0,200) (0.4,-3.0) defaultLabel,
-  bubble 80 0.1 e0 (300,-280) (-2,1) defaultLabel,
-  bubble 15 5 0.4 (300,300) (-4,-3) defaultLabel,
-  bubble 40 1 e0 (200,200) (-5,-1) defaultLabel,
-  box (100,100) 1 e0 (300,0) (0,0) defaultLabel,
-  box (20,20) 1 e0 (-200,0) (3,0) defaultLabel,
-  box (20,40) 1 e0 (200,-200) (-1,-1) defaultLabel
-  ] ++ bounds (750,550) 100 e0 (0,0) defaultLabel
-
+someBodies = [
+--  bubble 2 50 e0 (20,40) (0,1) defaultLabel,
+--  bubble 2 20 0 (0,40) (0,0) defaultLabel,
+  bubble 2 1 e0 (70,0) (0.0,5.0) defaultLabel,
+  bubble 2 1 0.4 (40,0) (0,-6) defaultLabel,
+  bubble 5 200 0 (0, 0) (0,0) defaultLabel
+  ]
 -- we'll just compute the label from the data in the body
 bodyLabel restitution inverseMass = 
   ["e = ", toString restitution, "\nm = ", toString (round (1/inverseMass))] |> String.concat
 
 type alias Labeled = { label: String }
 type alias LabeledBody = Body Labeled
-
---attachlabel label body = 
---  let labelRecord = { label = label }
---  in { body }
-
--- and attach it to all the bodies
 
 labeledBodies : Model String
 labeledBodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies
@@ -71,7 +60,7 @@ drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) =
         Bubble radius ->
           group [ 
             circle radius |> outlined (solid black),
-            info |> move (0,radius+16),
+--            info |> move (0,radius+16),
             veloLine
             ]
         Box extents -> 
@@ -84,20 +73,27 @@ drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) =
   in move pos ready  
 
 scene : Model String -> Element
-scene bodies = collage 800 700 <| map drawBody bodies 
-
--- different force functions to experiment with
-constgravity t = ((0,-0.2), (0,0)) -- constant downward gravity
-sinforce t = ((sin <| radians (t/1000)) * 50, 0) -- sinusoidal sideways force
-counterforces t = ((0,-0.01), (0, t/1000)) -- small gravity, slowly accellerating upward drift
+scene bodies = collage 800 600 <| map drawBody bodies 
 
 type Msg = Tick Time
 
 subs : Sub Msg
 subs = AnimationFrame.diffs Tick
 
+k : Float
+k = 0.1
+
+pairForce : Body meta -> Body meta -> Vec2
+pairForce b1 b2 =
+  let m1 = mass b1
+      m2 = mass b2
+      r12 = minus b2.pos b1.pos
+      dSq = lenSq r12
+  in if dSq == 0 then (0,0) else mul2 r12 (k*m1*m2 / dSq / (sqrt dSq))
+
+-- gravitational attraction between bodies
 forces: List(Body meta) -> Body meta -> Vec2
-forces bodies body = mul2 (0, -2.0) (mass body)
+forces bodies body = foldl (\b vec -> plus vec (pairForce body b)) (0,0) bodies
 
 update: Msg -> Model meta -> Model meta
 update (Tick dt) bodies = step forces (dt * 0.01) bodies
