@@ -1,10 +1,10 @@
-module BoxesAndBubbles.Bodies exposing (Body, Shape(..))
+module BoxesAndBubbles.Bodies exposing (Body, mass, Shape(..))
 {-| # Boxes and Bubbles Bodies.
 Defines bodies as used by the Boxes and Bubbles engine. You will need these data types to 
 display and modify bodies being calculated. For creating them, you may prefer the constructor 
 functions in the BoxesAndBubbles module.
 
-@docs Body, Shape
+@docs Body, Shape, mass
 
 -}
 
@@ -35,3 +35,8 @@ with using radius for circles.
 type Shape = 
     Box Vec2 -- vector of extents (half-widths)
   | Bubble Float -- radius
+  
+{-| Mass of a body. Will return 1.0 if the body is infinitely heavy.
+-}
+mass : Body meta -> Float
+mass body = if body.inverseMass == 0 then 1.0 else (1.0/body.inverseMass)

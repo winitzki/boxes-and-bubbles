@@ -14,7 +14,7 @@ The scene is updated after each animation frame.
 import Html.App exposing (program)
 import BoxesAndBubbles.Bodies exposing (..)
 import BoxesAndBubbles exposing (..)
-import BoxesAndBubbles.Math2D exposing (mul2)
+import BoxesAndBubbles.Math2D exposing (mul2, Vec2)
 import List exposing (map)
 import Collage exposing (..)
 import Element exposing (..)
@@ -96,8 +96,11 @@ type Msg = Tick Time
 subs : Sub Msg
 subs = AnimationFrame.diffs Tick
 
+forces: List(Body meta) -> Body meta -> Vec2
+forces bodies body = mul2 (0, -0.000002) (mass body)
+
 update: Msg -> Model meta -> Model meta
-update (Tick dt) bodies = step (0, -0.2) (0,0) bodies
+update (Tick dt) bodies = step forces dt bodies
 
 {-| Run the animation started from the initial scene defined as `labeledBodies`.
 -}

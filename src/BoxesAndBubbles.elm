@@ -115,35 +115,11 @@ bounds (w,h) thickness restitution (cx,cy) meta =
 {-| Perform a step in the physics simulation. Applies forces to objects and updates them based
 on their velocity and collisions. Order of bodies in input list is not preserved in the output.
 
-The `gravity` parameter give a global force that ignores object masses, while `force` 
-takes mass into account. Since both types of forces are vectors, they can point in any direction.
-The ambient force can be used to simulate a current, for example.
+Apply computed forces to bodies:
 
-    step gravity ambient bodies
-
-Apply a downward gravity and sideways ambient force to bodies:
-
-    step (0,-0.2) (20,0) bodies
+    step forces dt bodies
 -}
-step: Vec2 -> Vec2 -> List (Body meta) -> List (Body meta)
-step gravity ambient bodies = 
-  List.map (update gravity ambient) (collide [] bodies)
 
-{-   | Convenience function to run the physics engine with a signal and a fixed list of bodies. 
-The forces are a signal so that you can vary them over time. 
-Order of bodies in initial list is not preserved in the output signal.
-
-Applies the step function to (gravity,ambient) tuple from the signal and the 
-updated list of bodies.
-
-    run tick bodies
-
-Run with constant gravity and ambient forces that increase over time, updated at 20 fps:
-
-    f t = ((0,-0.1), (t/1000))
-    run bodies (f <~ foldp (+) 0 (fps 20))
-
-
-run: List (Body meta) -> Signal (Vec2,Vec2) -> Signal (List (Body meta))
-run bodies tick = foldp (uncurry step) bodies tick
--}
+step: (List(Body meta) -> Body meta -> Vec2) -> Float -> List (Body meta) -> List (Body meta)
+step forces dt bodies = 
+  List.map (\body -> update (forces bodies body) dt body) (collide [] bodies)

@@ -142,12 +142,11 @@ collide acc bodies =
 May be used to gain a more fine-grained control over what forces affect.
 No implication of API stability.
 -}
-update: Vec2 -> Vec2 -> Body a -> Body a
-update gravity force body = 
-  let accelGravity = if body.inverseMass == 0 then (0,0) else gravity
-      acceleration = mul2 force body.inverseMass -- f = ma => a = f/m
-      velocityNew = plus accelGravity <| plus body.velocity acceleration
-      posNew = plus body.pos body.velocity
+update: Vec2 -> Float -> Body a -> Body a
+update force dt body = 
+  let acceleration = mul2 force body.inverseMass -- f = ma => a = f/m
+      velocityNew = plus body.velocity (mul2 acceleration dt)
+      posNew = plus body.pos (mul2 (plus body.velocity velocityNew) (dt*0.5))
   in { body | pos = posNew, velocity = velocityNew }
 
 
