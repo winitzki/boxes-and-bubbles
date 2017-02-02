@@ -22,8 +22,9 @@ import Color exposing (..)
 import Text exposing (fromString)
 import AnimationFrame
 import String
-import Time exposing (Time)
-import Mouse exposing (clicks, position)
+import Time exposing (Time, now)
+import Task exposing (perform)
+import Mouse exposing (downs, ups, position)
 
 inf = 1/0 -- infinity, hell yeah
 e0 = 0.8 -- default restitution coefficient
@@ -31,27 +32,29 @@ e0 = 0.8 -- default restitution coefficient
 -- box: (w,h) pos velocity density restitution 
 -- bubble: radius density restitution pos velocity 
 
-type alias Model meta = List (Body meta)
+type alias Pos3d = {x: Int, y: Int, t: Time}
+
+type alias Model meta = { bodies: List (Body meta), clickDown: Maybe Pos3d }
 
 defaultLabel = ""
 
 someBodies = [
-  bubble 2 1 e0 (70,0) (0.0,5.0) defaultLabel,
-  bubble 2 1 0.4 (40,0) (0,-6) defaultLabel,
+--  bubble 2 1 e0 (70,0) (0.0,5.0) defaultLabel,
+--  bubble 2 1 0.4 (40,0) (0,-6) defaultLabel,
   bubble 5 200 0 (0, 0) (0,0) defaultLabel
   ]
 -- we'll just compute the label from the data in the body
 bodyLabel restitution inverseMass = 
   ["e = ", toString restitution, "\nm = ", toString (round (1/inverseMass))] |> String.concat
 
-makeNewBody : Int -> Int -> LabeledBody
-makeNewBody x y = bubble 2 1 e0 (toFloat x - sizeX / 2.0, sizeY / 2.0 - toFloat y) (0.0,5.0) defaultLabel
+makeNewBody : Float -> Float -> Float -> Float -> LabeledBody
+makeNewBody x y vx vy = bubble 2 1 e0 (x - sizeX / 2.0, sizeY / 2.0 - y) (vx, vy) defaultLabel
 
 type alias Labeled = String
 type alias LabeledBody = Body Labeled
 
 labeledBodies : Model String
-labeledBodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies
+labeledBodies = {bodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies, clickDown = Nothing }
 
 -- why yes, it draws a body with label. Or creates the Element, rather
 drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) = 
@@ -78,12 +81,16 @@ sizeX = 800
 sizeY = 600
 
 scene : Model String -> Element
-scene bodies = collage sizeX sizeY <| map drawBody bodies
+scene model = collage sizeX sizeY <| map drawBody model.bodies
 
-type Msg = Tick Time | AddBody Int Int
+type Msg = Tick Time | AddBody Float Float Float Float | ClickDown Int Int | ClickDownTime Int Int Time | ClickUp Int Int | ErrorGettingTime
 
 subs : Sub Msg
-subs = Sub.batch [AnimationFrame.diffs Tick, clicks (\p -> AddBody p.x p.y) ]
+subs = Sub.batch [
+    AnimationFrame.diffs Tick
+    , downs (\p -> ClickDown p.x p.y)
+    , ups (\p -> ClickUp p.x p.y)
+    ]
 
 k : Float
 k = 0.1
@@ -100,11 +107,35 @@ pairForce b1 b2 =
 forces: List(Body meta) -> Body meta -> Vec2
 forces bodies body = foldl (\b vec -> plus vec (pairForce body b)) (0,0) bodies
 
-update: Msg -> Model String -> Model String
-update msg bodies =
+
+computeVelocity: Pos3d -> Int -> Int -> Time -> Msg
+computeVelocity pos3d x1 y1 t1 =
+    let
+        xF = (toFloat x1)
+        yF = (toFloat y1)
+        dt = (t1 - pos3d.t) * timeFactor
+        vx = (xF - toFloat pos3d.x) / dt
+        vy = -1 * (yF - toFloat pos3d.y) / dt
+    in
+        AddBody xF yF vx vy
+
+timeFactor = 0.01
+
+updateAll: Msg -> Model String -> (Model String, Cmd Msg)
+updateAll msg model =
+    let
+        bodies = model.bodies
+    in
     case msg of
-        Tick dt -> step forces (dt * 0.01) bodies
-        AddBody x y -> (makeNewBody x y) :: bodies
+        Tick dt -> ({ model | bodies = step forces (dt * timeFactor) bodies }, Cmd.none)
+        AddBody x y vx vy -> ({ model | bodies = (makeNewBody x y vx vy) :: bodies }, Cmd.none)
+        ClickDown x y -> (model, perform (\_ -> ErrorGettingTime) (\t -> ClickDownTime x y t) now )
+        ClickDownTime x y t -> ({model | clickDown = Just {x = x, y = y, t = t}}, Cmd.none)
+        ClickUp x y -> (model, case model.clickDown of
+            Just pos -> perform (\_ -> ErrorGettingTime) (\t -> computeVelocity pos x y t) now
+            Nothing -> Cmd.none
+          )
+        ErrorGettingTime -> (model, Cmd.none)
 
 {-| Run the animation started from the initial scene defined as `labeledBodies`.
 -}
@@ -112,7 +143,7 @@ update msg bodies =
 main : Program Never
 main = program { 
   init = (labeledBodies, Cmd.none)
-  , update = (\msg bodies -> ( update msg bodies, Cmd.none ))
+  , update = updateAll
   , subscriptions = always subs
   , view = scene >> Element.toHtml
   }
