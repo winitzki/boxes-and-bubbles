@@ -23,6 +23,7 @@ import Text exposing (fromString)
 import AnimationFrame
 import String
 import Time exposing (Time)
+import Mouse exposing (clicks, position)
 
 inf = 1/0 -- infinity, hell yeah
 e0 = 0.8 -- default restitution coefficient
@@ -35,8 +36,6 @@ type alias Model meta = List (Body meta)
 defaultLabel = ""
 
 someBodies = [
---  bubble 2 50 e0 (20,40) (0,1) defaultLabel,
---  bubble 2 20 0 (0,40) (0,0) defaultLabel,
   bubble 2 1 e0 (70,0) (0.0,5.0) defaultLabel,
   bubble 2 1 0.4 (40,0) (0,-6) defaultLabel,
   bubble 5 200 0 (0, 0) (0,0) defaultLabel
@@ -45,7 +44,10 @@ someBodies = [
 bodyLabel restitution inverseMass = 
   ["e = ", toString restitution, "\nm = ", toString (round (1/inverseMass))] |> String.concat
 
-type alias Labeled = { label: String }
+makeNewBody : Int -> Int -> LabeledBody
+makeNewBody x y = bubble 2 1 e0 (toFloat x - sizeX / 2.0, sizeY / 2.0 - toFloat y) (0.0,5.0) defaultLabel
+
+type alias Labeled = String
 type alias LabeledBody = Body Labeled
 
 labeledBodies : Model String
@@ -72,13 +74,16 @@ drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) =
           ] 
   in move pos ready  
 
-scene : Model String -> Element
-scene bodies = collage 800 600 <| map drawBody bodies 
+sizeX = 800
+sizeY = 600
 
-type Msg = Tick Time
+scene : Model String -> Element
+scene bodies = collage sizeX sizeY <| map drawBody bodies
+
+type Msg = Tick Time | AddBody Int Int
 
 subs : Sub Msg
-subs = AnimationFrame.diffs Tick
+subs = Sub.batch [AnimationFrame.diffs Tick, clicks (\p -> AddBody p.x p.y) ]
 
 k : Float
 k = 0.1
@@ -95,8 +100,11 @@ pairForce b1 b2 =
 forces: List(Body meta) -> Body meta -> Vec2
 forces bodies body = foldl (\b vec -> plus vec (pairForce body b)) (0,0) bodies
 
-update: Msg -> Model meta -> Model meta
-update (Tick dt) bodies = step forces (dt * 0.01) bodies
+update: Msg -> Model String -> Model String
+update msg bodies =
+    case msg of
+        Tick dt -> step forces (dt * 0.01) bodies
+        AddBody x y -> (makeNewBody x y) :: bodies
 
 {-| Run the animation started from the initial scene defined as `labeledBodies`.
 -}
