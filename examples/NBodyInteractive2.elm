@@ -84,7 +84,7 @@ labeledBodies = {
   bodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies,
   clickDown = Nothing,
   dragOrbit = Nothing,
-  useOrbits = False
+  useOrbits = True
   }
 
 -- why yes, it draws a body with label. Or creates the Element, rather
