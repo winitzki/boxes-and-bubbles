@@ -25,7 +25,7 @@ import Html
 import Keyboard
 import Time exposing (Time, now)
 import Task exposing (perform)
-import Mouse exposing (downs, ups, position)
+import Mouse exposing (downs, ups, position, moves)
 
 inf = 1/0 -- infinity, hell yeah
 e0 = 0.8 -- default restitution coefficient
@@ -33,14 +33,20 @@ e0 = 0.8 -- default restitution coefficient
 -- Size of the canvas
 sizeX = 1024
 sizeY = 800
-
+canvasCenter : Vec2
+canvasCenter = (sizeX / 2.0, sizeY / 2.0)
 
 -- box: (w,h) pos velocity density restitution 
 -- bubble: radius density restitution pos velocity 
 
 type alias Pos3d = {x: Int, y: Int, t: Time}
 
-type alias Model meta = { bodies: List (Body meta), clickDown: Maybe Pos3d, useOrbits: Bool }
+type alias Model meta = {
+ bodies: List (Body meta),
+ clickDown: Maybe Pos3d,
+ dragOrbit: Maybe (Int, Int),
+ useOrbits: Bool
+ }
 
 defaultLabel = ""
 
@@ -55,13 +61,15 @@ bodyLabel restitution inverseMass =
 makeNewBody : Float -> Float -> Float -> Float -> LabeledBody
 makeNewBody x y vx vy = bubble 2 1 e0 (x - sizeX / 2.0, sizeY / 2.0 - y) (vx, vy) defaultLabel
 
+distanceToStar: Vec2 -> Float
+distanceToStar r = sqrt(lenSq (minus r star.pos))
+
 makeNewOrbit : Float -> Float -> LabeledBody
 makeNewOrbit xRaw yRaw =
   let
     x = xRaw - sizeX / 2.0
     y = yRaw - sizeY / 2.0
-    pos = (x,y)
-    r = sqrt (lenSq (minus pos star.pos))
+    r = distanceToStar (x, y)
     vTotal = sqrt(k/star.inverseMass/r)
     vx = -vTotal*y/r
     vy = vTotal*x/r
@@ -72,7 +80,12 @@ type alias Labeled = String
 type alias LabeledBody = Body Labeled
 
 labeledBodies : Model String
-labeledBodies = {bodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies, clickDown = Nothing, useOrbits = False }
+labeledBodies = {
+  bodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies,
+  clickDown = Nothing,
+  dragOrbit = Nothing,
+  useOrbits = False
+  }
 
 -- why yes, it draws a body with label. Or creates the Element, rather
 drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) = 
@@ -98,16 +111,35 @@ drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) =
 drawModeIndicator: Model String -> Form
 drawModeIndicator model = if model.useOrbits then (filled Color.darkBlue <| rect 36 12) else (filled Color.lightBrown <| rect 36 12)
 
-scene : Model String -> Element
-scene model = collage sizeX sizeY <| (List.append ( map drawBody model.bodies) [drawModeIndicator model])
+drawOrbit: Vec2 -> Form
+drawOrbit rv = outlined (dashed Color.darkBlue) (circle (distanceToStar (minus rv canvasCenter)))
 
-type Msg = Tick Time | AddBody Float Float Float Float | ClickDown Int Int | ClickDownTime Int Int Time | ClickUp Int Int | ToggleMode
+scene : Model String -> Element
+scene model =
+  let
+   modeIndicator = drawModeIndicator model
+   indicators =
+    case model.dragOrbit of
+      Nothing ->  [modeIndicator]
+      Just (x,y) -> [modeIndicator, drawOrbit (toFloat x, toFloat y)]
+  in
+    collage sizeX sizeY <| List.append ( map drawBody model.bodies) indicators
+
+type Msg =
+ Tick Time |
+ AddBody Float Float Float Float |
+ ClickDown Int Int |
+ ClickDownTime Int Int Time |
+ ClickUp Int Int |
+ ToggleMode |
+ MouseMoved Int Int
 
 subs : Sub Msg
 subs = Sub.batch [
     AnimationFrame.diffs Tick
     , downs (\p -> ClickDown p.x p.y)
     , ups (\p -> ClickUp p.x p.y)
+    , moves (\p -> MouseMoved p.x p.y)
     , Keyboard.presses (\p -> ToggleMode)
     ]
 
@@ -160,12 +192,19 @@ updateAll msg model =
           else
             ({ model | bodies = List.append bodies [makeNewBody x y vx vy], clickDown = Nothing }, Cmd.none)
 
-        ClickDown x y -> (model, perform (\t -> ClickDownTime x y t) now )
+        ClickDown x y -> ({model | dragOrbit = Just (x, y)}, perform (\t -> ClickDownTime x y t) now )
         ClickDownTime x y t -> ({model | clickDown = Just {x = x, y = y, t = t}}, Cmd.none)
-        ClickUp x y -> (model, case model.clickDown of
+        ClickUp x y -> ({model | dragOrbit = Nothing}, case model.clickDown of
             Just pos -> perform (\t -> computeVelocity pos x y t) now
             Nothing -> Cmd.none
           )
+        MouseMoved x y ->
+          if model.dragOrbit == Nothing
+          then
+            (model, Cmd.none)
+          else
+            ({model | dragOrbit = Just (x, y)}, Cmd.none)
+
         ToggleMode ->
           let
            newMode = if model.clickDown == Nothing then not model.useOrbits else model.useOrbits
