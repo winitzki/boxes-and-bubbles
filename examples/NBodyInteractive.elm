@@ -41,7 +41,7 @@ defaultLabel = ""
 someBodies = [
 --  bubble 2 1 e0 (70,0) (0.0,5.0) defaultLabel,
 --  bubble 2 1 0.4 (40,0) (0,-6) defaultLabel,
-  bubble 5 200 0 (0, 0) (0,0) defaultLabel
+  bubble 50 1000 0 (0, 0) (0,0) defaultLabel
   ]
 -- we'll just compute the label from the data in the body
 bodyLabel restitution inverseMass = 
