@@ -11,7 +11,6 @@ The scene is updated after each animation frame.
 
 -}
 
-import Html exposing (program)
 import BoxesAndBubbles.Bodies exposing (..)
 import BoxesAndBubbles exposing (..)
 import BoxesAndBubbles.Math2D exposing (mul2, Vec2, plus, lenSq, minus)
@@ -22,6 +21,7 @@ import Color exposing (..)
 import Text exposing (fromString)
 import AnimationFrame
 import String
+import Html
 import Time exposing (Time, now)
 import Task exposing (perform)
 import Mouse exposing (downs, ups, position)
@@ -34,14 +34,14 @@ e0 = 0.8 -- default restitution coefficient
 
 type alias Pos3d = {x: Int, y: Int, t: Time}
 
-type alias Model meta = { bodies: List (Body meta), clickDown: Maybe Pos3d }
+type alias Model meta = { bodies: List (Body meta), clickDown: Maybe Pos3d, useOrbits: Bool }
 
 defaultLabel = ""
 
 someBodies = [
 --  bubble 2 1 e0 (70,0) (0.0,5.0) defaultLabel,
 --  bubble 2 1 0.4 (40,0) (0,-6) defaultLabel,
-  bubble 5 200 0 (0, 0) (0,0) defaultLabel
+  bubble 50 2000 0 (0, 0) (0,0) defaultLabel
   ]
 -- we'll just compute the label from the data in the body
 bodyLabel restitution inverseMass = 
@@ -54,7 +54,7 @@ type alias Labeled = String
 type alias LabeledBody = Body Labeled
 
 labeledBodies : Model String
-labeledBodies = {bodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies, clickDown = Nothing }
+labeledBodies = {bodies = map (\b -> { b | meta = bodyLabel b.restitution b.inverseMass }) someBodies, clickDown = Nothing, useOrbits = False }
 
 -- why yes, it draws a body with label. Or creates the Element, rather
 drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) = 
@@ -77,11 +77,14 @@ drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) =
           ] 
   in move pos ready  
 
-sizeX = 800
-sizeY = 600
+sizeX = 1024
+sizeY = 800
+
+drawModeIndicator: Model String -> Form
+drawModeIndicator model = if model.useOrbits then (filled Color.darkBlue <| rect 36 12) else (filled Color.lightBrown <| rect 36 12)
 
 scene : Model String -> Element
-scene model = collage sizeX sizeY <| map drawBody model.bodies
+scene model = collage sizeX sizeY <| (List.append ( map drawBody model.bodies) [drawModeIndicator model])
 
 type Msg = Tick Time | AddBody Float Float Float Float | ClickDown Int Int | ClickDownTime Int Int Time | ClickUp Int Int
 
@@ -139,8 +142,8 @@ updateAll msg model =
 {-| Run the animation started from the initial scene defined as `labeledBodies`.
 -}
 
-main : Program Never
-main = program { 
+main : Program Never (Model String) Msg
+main = Html.program {
   init = (labeledBodies, Cmd.none)
   , update = updateAll
   , subscriptions = always subs

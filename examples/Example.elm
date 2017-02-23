@@ -11,7 +11,7 @@ The scene is updated after each animation frame.
 
 -}
 
-import Html.App exposing (program)
+import Html exposing (program)
 import BoxesAndBubbles.Bodies exposing (..)
 import BoxesAndBubbles exposing (..)
 import BoxesAndBubbles.Math2D exposing (mul2, Vec2)
