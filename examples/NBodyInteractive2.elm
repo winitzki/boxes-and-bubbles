@@ -119,9 +119,13 @@ scene model =
   let
    modeIndicator = drawModeIndicator model
    indicators =
-    case model.dragOrbit of
-      Nothing ->  [modeIndicator]
-      Just (x,y) -> [modeIndicator, drawOrbit (toFloat x, toFloat y)]
+     if model.useOrbits
+     then
+       case model.dragOrbit of
+         Nothing ->  [modeIndicator]
+         Just (x,y) -> [modeIndicator, drawOrbit (toFloat x, toFloat y)]
+     else
+       [modeIndicator]
   in
     collage sizeX sizeY <| List.append ( map drawBody model.bodies) indicators
 
@@ -181,7 +185,7 @@ updateAll msg model =
         Tick dt ->
          let
           newBodiesRaw = step forces (dt * timeFactor) bodies
-          newBodies = star ::  List.filter (\b -> b.inverseMass /= star.inverseMass) newBodiesRaw
+          newBodies = star :: List.filter (\b -> b.inverseMass /= star.inverseMass) newBodiesRaw
          in
           ({ model | bodies = newBodies }, Cmd.none)
 
