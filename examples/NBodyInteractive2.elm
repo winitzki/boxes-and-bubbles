@@ -30,6 +30,11 @@ import Mouse exposing (downs, ups, position)
 inf = 1/0 -- infinity, hell yeah
 e0 = 0.8 -- default restitution coefficient
 
+-- Size of the canvas
+sizeX = 1024
+sizeY = 800
+
+
 -- box: (w,h) pos velocity density restitution 
 -- bubble: radius density restitution pos velocity 
 
@@ -39,6 +44,7 @@ type alias Model meta = { bodies: List (Body meta), clickDown: Maybe Pos3d, useO
 
 defaultLabel = ""
 
+-- Star needs to remain at (0,0) with velocity (0,0)
 star = bubble 50 2000 0 (0, 0) (0,0) defaultLabel
 
 someBodies = [ star ]
@@ -48,6 +54,19 @@ bodyLabel restitution inverseMass =
 
 makeNewBody : Float -> Float -> Float -> Float -> LabeledBody
 makeNewBody x y vx vy = bubble 2 1 e0 (x - sizeX / 2.0, sizeY / 2.0 - y) (vx, vy) defaultLabel
+
+makeNewOrbit : Float -> Float -> LabeledBody
+makeNewOrbit xRaw yRaw =
+  let
+    x = xRaw - sizeX / 2.0
+    y = yRaw - sizeY / 2.0
+    pos = (x,y)
+    r = sqrt (lenSq (minus pos star.pos))
+    vTotal = sqrt(k/star.inverseMass/r)
+    vx = -vTotal*y/r
+    vy = vTotal*x/r
+  in
+    bubble 2 1 e0 (x, y) (vx, vy) defaultLabel
 
 type alias Labeled = String
 type alias LabeledBody = Body Labeled
@@ -75,9 +94,6 @@ drawBody ({pos,velocity,inverseMass,restitution,shape,meta}) =
             veloLine            
           ] 
   in move pos ready  
-
-sizeX = 1024
-sizeY = 800
 
 drawModeIndicator: Model String -> Form
 drawModeIndicator model = if model.useOrbits then (filled Color.darkBlue <| rect 36 12) else (filled Color.lightBrown <| rect 36 12)
@@ -137,7 +153,13 @@ updateAll msg model =
          in
           ({ model | bodies = newBodies }, Cmd.none)
 
-        AddBody x y vx vy -> ({ model | bodies = List.append bodies [makeNewBody x y vx vy], clickDown = Nothing }, Cmd.none)
+        AddBody x y vx vy ->
+          if model.useOrbits
+          then
+            ({ model | bodies = List.append bodies [makeNewOrbit x y], clickDown = Nothing }, Cmd.none)
+          else
+            ({ model | bodies = List.append bodies [makeNewBody x y vx vy], clickDown = Nothing }, Cmd.none)
+
         ClickDown x y -> (model, perform (\t -> ClickDownTime x y t) now )
         ClickDownTime x y t -> ({model | clickDown = Just {x = x, y = y, t = t}}, Cmd.none)
         ClickUp x y -> (model, case model.clickDown of
