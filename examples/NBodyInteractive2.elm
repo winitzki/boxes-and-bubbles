@@ -22,6 +22,7 @@ import Text exposing (fromString)
 import AnimationFrame
 import String
 import Html
+import Keyboard
 import Time exposing (Time, now)
 import Task exposing (perform)
 import Mouse exposing (downs, ups, position)
@@ -38,11 +39,9 @@ type alias Model meta = { bodies: List (Body meta), clickDown: Maybe Pos3d, useO
 
 defaultLabel = ""
 
-someBodies = [
---  bubble 2 1 e0 (70,0) (0.0,5.0) defaultLabel,
---  bubble 2 1 0.4 (40,0) (0,-6) defaultLabel,
-  bubble 50 2000 0 (0, 0) (0,0) defaultLabel
-  ]
+star = bubble 50 2000 0 (0, 0) (0,0) defaultLabel
+
+someBodies = [ star ]
 -- we'll just compute the label from the data in the body
 bodyLabel restitution inverseMass = 
   ["e = ", toString restitution, "\nm = ", toString (round (1/inverseMass))] |> String.concat
@@ -86,13 +85,14 @@ drawModeIndicator model = if model.useOrbits then (filled Color.darkBlue <| rect
 scene : Model String -> Element
 scene model = collage sizeX sizeY <| (List.append ( map drawBody model.bodies) [drawModeIndicator model])
 
-type Msg = Tick Time | AddBody Float Float Float Float | ClickDown Int Int | ClickDownTime Int Int Time | ClickUp Int Int
+type Msg = Tick Time | AddBody Float Float Float Float | ClickDown Int Int | ClickDownTime Int Int Time | ClickUp Int Int | ToggleMode
 
 subs : Sub Msg
 subs = Sub.batch [
     AnimationFrame.diffs Tick
     , downs (\p -> ClickDown p.x p.y)
     , ups (\p -> ClickUp p.x p.y)
+    , Keyboard.presses (\p -> ToggleMode)
     ]
 
 k : Float
@@ -130,14 +130,25 @@ updateAll msg model =
         bodies = model.bodies
     in
     case msg of
-        Tick dt -> ({ model | bodies = step forces (dt * timeFactor) bodies }, Cmd.none)
-        AddBody x y vx vy -> ({ model | bodies = (makeNewBody x y vx vy) :: bodies }, Cmd.none)
+        Tick dt ->
+         let
+          newBodiesRaw = step forces (dt * timeFactor) bodies
+          newBodies = star ::  List.filter (\b -> b.inverseMass /= star.inverseMass) newBodiesRaw
+         in
+          ({ model | bodies = newBodies }, Cmd.none)
+
+        AddBody x y vx vy -> ({ model | bodies = List.append bodies [makeNewBody x y vx vy], clickDown = Nothing }, Cmd.none)
         ClickDown x y -> (model, perform (\t -> ClickDownTime x y t) now )
         ClickDownTime x y t -> ({model | clickDown = Just {x = x, y = y, t = t}}, Cmd.none)
         ClickUp x y -> (model, case model.clickDown of
             Just pos -> perform (\t -> computeVelocity pos x y t) now
             Nothing -> Cmd.none
           )
+        ToggleMode ->
+          let
+           newMode = if model.clickDown == Nothing then not model.useOrbits else model.useOrbits
+          in
+          ({ model | useOrbits = newMode }, Cmd.none)
 
 {-| Run the animation started from the initial scene defined as `labeledBodies`.
 -}
