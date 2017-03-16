@@ -47,6 +47,8 @@ type alias Model meta = {
  clickDown: Maybe Pos3d,
  dragOrbit: Maybe (Int, Int),
  running: Bool,
+ currentMouseX: Int,
+ currentMouseY: Int,
  editMode: EditMode
  }
 
@@ -87,6 +89,8 @@ initialModelValue = {
   clickDown = Nothing,
   dragOrbit = Nothing,
   running = True,
+  currentMouseX = 0,
+  currentMouseY = 0,
   editMode = Fling
   }
 
@@ -123,17 +127,34 @@ drawModeIndicator model = let
 drawOrbit: Vec2 -> Form
 drawOrbit rv = outlined (dashed Color.darkBlue) (circle (distanceToStar (minus rv canvasCenter)))
 
+vecFlip: Vec2 -> Vec2
+vecFlip (x, y) = (x, -y)
+
+deleteCursorSize = 32
+
+drawDeleteCursor: Vec2 -> Form
+drawDeleteCursor rv = filled (Color.rgba 200 128 128 0.5) (circle deleteCursorSize) |> move rv
+
+getMousePos: Model meta -> Vec2
+getMousePos model = vecFlip (minus (toFloat model.currentMouseX, toFloat model.currentMouseY) canvasCenter)
+
+deletePlanet: Model meta -> Model meta
+deletePlanet model = let
+   filter body = lenSq (minus (getMousePos model) body.pos) > deleteCursorSize * deleteCursorSize
+  in
+   { model | bodies = List.filter filter model.bodies }
+
 scene : Model String -> Element
 scene model =
   let
    modeIndicator = drawModeIndicator model
-   orbitLine =
-     if model.editMode == CircleOrbit
-     then
+   orbitLine = case model.editMode of
+    CircleOrbit ->
       case model.dragOrbit of
         Nothing ->  []
         Just (x,y) -> [drawOrbit (toFloat x, toFloat y)]
-     else []
+    Delete -> [drawDeleteCursor (getMousePos model)]
+    _ -> []
   in
     collage sizeX sizeY <| List.append ( map drawBody model.bodies) <| List.append [modeIndicator] orbitLine
 
@@ -181,7 +202,6 @@ pairForce b1 b2 =
 forces: List(Body meta) -> Body meta -> Vec2
 forces bodies body = foldl (\b vec -> plus vec (pairForce body b)) (0,0) bodies
 
-
 computeVelocity: Pos3d -> Int -> Int -> Time -> Msg
 computeVelocity pos3d x1 y1 t1 =
     let
@@ -214,18 +234,22 @@ updateAll msg model =
           _ ->
             ({ model | bodies = List.append bodies [makeNewBody x y vx vy], clickDown = Nothing }, Cmd.none)
 
-        ClickDown x y -> ({model | dragOrbit = Just (x, y)}, perform (\t -> ClickDownTime x y t) now )
+        ClickDown x y -> case model.editMode of
+          CircleOrbit -> ({model | dragOrbit = Just (x, y)}, perform (\t -> ClickDownTime x y t) now )
+          Fling -> (model, perform (\t -> ClickDownTime x y t) now)
+          Delete -> (deletePlanet model, Cmd.none)
+
         ClickDownTime x y t -> ({model | clickDown = Just {x = x, y = y, t = t}}, Cmd.none)
         ClickUp x y -> ({model | dragOrbit = Nothing}, case model.clickDown of
             Just pos -> perform (\t -> computeVelocity pos x y t) now
             Nothing -> Cmd.none
           )
-        MouseMoved x y ->
-          if model.dragOrbit == Nothing
-          then
-            (model, Cmd.none)
-          else
-            ({model | dragOrbit = Just (x, y)}, Cmd.none)
+        MouseMoved x y -> let
+         modelWithDragOrbitCoords =
+          if model.dragOrbit == Nothing then model else {model | dragOrbit = Just (x, y)}
+         modelWithMouseCoords = {modelWithDragOrbitCoords | currentMouseX = x, currentMouseY = y}
+        in
+         (modelWithMouseCoords, Cmd.none)
 
         ToggleRunning -> ({ model | running = not model.running }, Cmd.none)
 
