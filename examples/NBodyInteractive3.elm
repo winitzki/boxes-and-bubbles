@@ -72,7 +72,7 @@ makeNewOrbit : Float -> Float -> LabeledBody
 makeNewOrbit xRaw yRaw =
   let
     x = xRaw - sizeX / 2.0
-    y = yRaw - sizeY / 2.0
+    y = -(yRaw - sizeY / 2.0)
     r = distanceToStar (x, y)
     vTotal = sqrt(k/star.inverseMass/r)
     vx = -vTotal*y/r
