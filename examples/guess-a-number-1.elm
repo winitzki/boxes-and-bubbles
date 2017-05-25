@@ -72,9 +72,11 @@ scene model =
     , div [] []
     , text "Is the number X greater than "
     , input [ placeholder "your guess", onInput Ask, myStyle ] []
-    , text " ? "
-    , button [ onClick Answer ] [ text "ask" ]
+    , text " "
+    , button [ onClick Answer ] [ text "?" ]
     , div [ myStyle2 ] [ text model.message ]
+    , div [] []
+    , text ("You made " ++ toString model.tries ++ " tries")
     ]
 
 myStyle =
