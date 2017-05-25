@@ -18,7 +18,7 @@ import String
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-
+import Random exposing (generate, int)
 import Time exposing (Time, now)
 import Task exposing (perform)
 
@@ -26,7 +26,9 @@ type Msg = Reset
  | Answer
  | SetGuess Int
  | Ask String
+ | SetSecret Int
 
+upperLimit = 50
 
 type alias Model = {
     n: Int
@@ -37,17 +39,20 @@ type alias Model = {
 
 initModel = { n = 20, tries = 0, current = "", message = "" }
 
+initFill = Random.generate SetSecret (Random.int 1 upperLimit)
+
 updateAll: Msg -> Model -> (Model, Cmd Msg)
 updateAll msg model =
   case msg of
-    Reset -> (initModel, Cmd.none)
+    Reset -> (initModel, initFill)
+    SetSecret x -> ( { model | n = x }, Cmd.none)
     Ask x -> ( { model | current = x }, Cmd.none)
     Answer ->
       let
         newMessage = case String.toInt model.current of
            Err msg -> "Error: bad numeric format"
            Ok x ->
-             if model.n == x then "you won!" else
+             if model.n == x then "you got it!" else
              if model.n > x then
               "it is greater than " ++ toString x
              else
@@ -61,7 +66,7 @@ updateAll msg model =
 scene : Model -> Html Msg
 scene model =
  div []
-    [ text "Guess-a-number"
+    [ text <| "Guess-a-number: 1 to " ++ toString upperLimit
     , div [] []
     , button [ onClick Reset ] [ text "Start over" ]
     , div [] []
@@ -94,7 +99,7 @@ myStyle2 =
 
 main : Program Never Model Msg
 main = Html.program {
-  init = (initModel, Cmd.none)
+  init = (initModel, initFill)
   , update = updateAll
   , subscriptions = always Sub.none
   , view = scene
