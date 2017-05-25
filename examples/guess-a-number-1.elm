@@ -19,12 +19,13 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Random exposing (generate, int)
-import Time exposing (Time, now)
+import Time exposing (Time, now, second)
+import Process exposing (sleep)
 import Task exposing (perform)
 
 type Msg = Reset
+ | Request
  | Answer
- | SetGuess Int
  | Ask String
  | SetSecret Int
 
@@ -47,6 +48,7 @@ updateAll msg model =
     Reset -> (initModel, initFill)
     SetSecret x -> ( { model | n = x }, Cmd.none)
     Ask x -> ( { model | current = x }, Cmd.none)
+    Request -> (model, perform (\_ -> Answer) (sleep (10 * second)) )
     Answer ->
       let
         newMessage = case String.toInt model.current of
@@ -61,7 +63,7 @@ updateAll msg model =
       in
         (newModel, Cmd.none)
 
-    _ -> (model, Cmd.none)
+--    _ -> (model, Cmd.none)
 
 scene : Model -> Html Msg
 scene model =
@@ -73,7 +75,7 @@ scene model =
     , text "Is the number X greater than "
     , input [ placeholder "your guess", onInput Ask, myStyle ] []
     , text " "
-    , button [ onClick Answer ] [ text "?" ]
+    , button [ onClick Request ] [ text "?" ]
     , div [ myStyle2 ] [ text model.message ]
     , div [] []
     , text ("You made " ++ toString model.tries ++ " tries")
